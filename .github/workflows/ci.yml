@@ -84,9 +84,9 @@ jobs:
       
       - name: Get version
         id: version
-        run: echo "version=$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+        run: echo "version=v$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
       
-      - name: Upload to Server
+      - name: Create version folder on server
         uses: appleboy/ssh-action@v1.0.3
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -98,20 +98,37 @@ jobs:
           envs: VERSION
           script_stop: true
           script: |
-            mkdir -p ~/projects/apps/linux
-            mkdir -p ~/projects/apps/macos
-            mkdir -p ~/projects/apps/windows
+            mkdir -p ~/projects/apps/$VERSION/linux
+            mkdir -p ~/projects/apps/$VERSION/macos
+            mkdir -p ~/projects/apps/$VERSION/windows
       
       - name: Copy binaries to server
         uses: appleboy/scp-action@v0.1.7
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         with:
           host: ${{ vars.SERVER_HOST }}
           username: ${{ vars.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ vars.SERVER_PORT }}
           source: "binaries/*"
-          target: "~/projects/apps/"
+          target: "~/projects/apps/${{ steps.version.outputs.version }}/"
           strip_components: 1
+      
+      - name: Update latest symlink
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        with:
+          host: ${{ vars.SERVER_HOST }}
+          username: ${{ vars.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ vars.SERVER_PORT }}
+          envs: VERSION
+          script: |
+            rm -f ~/projects/apps/latest
+            ln -s ~/projects/apps/$VERSION ~/projects/apps/latest
+            echo "Released $VERSION"
 
   # ----------------------------------------
   # Job 4: Deploy Docker to Server
@@ -144,8 +161,9 @@ jobs:
             echo "  StrictHostKeyChecking no" >> ~/.ssh/config
             chmod 600 ~/.ssh/config
             ssh -T git@github.com || true
-            if [ -d ~/dhook ]; then cd ~/dhook && git pull origin main; else git clone git@github.com:alisheraxmedov/dhook.git ~/dhook; fi
-            cd ~/dhook
+            mkdir -p ~/projects
+            if [ -d ~/projects/dhook ]; then cd ~/projects/dhook && git pull origin main; else git clone git@github.com:alisheraxmedov/dhook.git ~/projects/dhook; fi
+            cd ~/projects/dhook
             docker compose down || true
             docker compose up -d --build
             echo "DHOOK deployed successfully!"
