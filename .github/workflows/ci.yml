@@ -49,34 +49,18 @@ jobs:
           envs: DEPLOY_KEY
           script_stop: true
           script: |
-            # Setup SSH key for GitHub access
             mkdir -p ~/.ssh
             echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
             chmod 600 ~/.ssh/deploy_key
-            
-            # Configure SSH to use this key for GitHub
-            cat > ~/.ssh/config << 'EOF'
-            Host github.com
-              HostName github.com
-              User git
-              IdentityFile ~/.ssh/deploy_key
-              StrictHostKeyChecking no
-            EOF
-            
-            # Test GitHub connection
+            echo "Host github.com" > ~/.ssh/config
+            echo "  HostName github.com" >> ~/.ssh/config
+            echo "  User git" >> ~/.ssh/config
+            echo "  IdentityFile ~/.ssh/deploy_key" >> ~/.ssh/config
+            echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+            chmod 600 ~/.ssh/config
             ssh -T git@github.com || true
-            
-            # Clone or update repository
-            if [ -d ~/dhook ]; then
-              cd ~/dhook
-              git pull origin main
-            else
-              git clone git@github.com:alisheraxmedov/dhook.git ~/dhook
-            fi
-            
-            # Build and run with Docker
+            if [ -d ~/dhook ]; then cd ~/dhook && git pull origin main; else git clone git@github.com:alisheraxmedov/dhook.git ~/dhook; fi
             cd ~/dhook
             docker compose down || true
             docker compose up -d --build
-            
             echo "DHOOK deployed successfully!"
