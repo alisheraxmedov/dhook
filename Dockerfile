@@ -20,8 +20,8 @@ RUN dart compile exe bin/dhook.dart -o dhook-server
 # --------------------------------------------------------
 FROM debian:stable-slim
 
-# Install SSL certificates for HTTPS connections
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+# Install SSL certificates and curl for healthcheck
+RUN apt-get update && apt-get install -y ca-certificates curl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
