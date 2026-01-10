@@ -39,16 +39,19 @@ jobs:
     steps:
       - name: Deploy to Server via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          DEPLOY_KEY: ${{ secrets.SERVER_SSH_KEY }}
         with:
           host: ${{ vars.SERVER_HOST }}
           username: ${{ vars.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ vars.SERVER_PORT }}
+          envs: DEPLOY_KEY
           script_stop: true
           script: |
             # Setup SSH key for GitHub access
             mkdir -p ~/.ssh
-            echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/deploy_key
+            echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
             chmod 600 ~/.ssh/deploy_key
             
             # Configure SSH to use this key for GitHub
@@ -59,6 +62,9 @@ jobs:
               IdentityFile ~/.ssh/deploy_key
               StrictHostKeyChecking no
             EOF
+            
+            # Test GitHub connection
+            ssh -T git@github.com || true
             
             # Clone or update repository
             if [ -d ~/dhook ]; then
