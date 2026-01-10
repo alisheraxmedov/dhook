@@ -1,0 +1,53 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ----------------------------------------
+  # Job 1: Test
+  # ----------------------------------------
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      
+      - name: Install dependencies
+        run: dart pub get
+      
+      - name: Analyze code
+        run: dart analyze
+      
+      - name: Run tests
+        run: dart test
+
+  # ----------------------------------------
+  # Job 2: Deploy to Server
+  # ----------------------------------------
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ vars.SERVER_HOST }}
+          username: ${{ vars.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ vars.SERVER_PORT }}
+          script: |
+            cd ~/dhook || git clone https://github.com/alisheraxmedov/dhook.git ~/dhook
+            cd ~/dhook
+            git pull origin main
+            docker-compose down || true
+            docker-compose up -d --build
+            echo "DHOOK deployed successfully!"
