@@ -3,6 +3,8 @@ name: CI/CD
 on:
   push:
     branches: [main]
+    tags:
+      - 'v*'
   pull_request:
     branches: [main]
 
@@ -29,7 +31,90 @@ jobs:
         run: dart test
 
   # ----------------------------------------
-  # Job 2: Deploy to Server
+  # Job 2: Build Binaries for All Platforms
+  # ----------------------------------------
+  build:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux
+            ext: ''
+          - os: macos-latest
+            name: macos
+            ext: ''
+          - os: windows-latest
+            name: windows
+            ext: '.exe'
+    
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      
+      - name: Install dependencies
+        run: dart pub get
+      
+      - name: Compile binary
+        run: dart compile exe bin/dhook.dart -o dhook-${{ matrix.name }}${{ matrix.ext }}
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dhook-${{ matrix.name }}
+          path: dhook-${{ matrix.name }}${{ matrix.ext }}
+
+  # ----------------------------------------
+  # Job 3: Upload Binaries to Server
+  # ----------------------------------------
+  upload-binaries:
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: binaries
+      
+      - name: Get version
+        id: version
+        run: echo "version=$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+      
+      - name: Upload to Server
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        with:
+          host: ${{ vars.SERVER_HOST }}
+          username: ${{ vars.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ vars.SERVER_PORT }}
+          envs: VERSION
+          script_stop: true
+          script: |
+            mkdir -p ~/projects/apps/linux
+            mkdir -p ~/projects/apps/macos
+            mkdir -p ~/projects/apps/windows
+      
+      - name: Copy binaries to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.SERVER_HOST }}
+          username: ${{ vars.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ vars.SERVER_PORT }}
+          source: "binaries/*"
+          target: "~/projects/apps/"
+          strip_components: 1
+
+  # ----------------------------------------
+  # Job 4: Deploy Docker to Server
   # ----------------------------------------
   deploy:
     needs: test
