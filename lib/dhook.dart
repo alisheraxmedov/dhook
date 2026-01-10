@@ -1,0 +1,20 @@
+// AUTHOR: Alisher Axmedov 
+// EMAIL: alisheraxmedov4x4@gmail.com
+// LICENSE: MIT
+// COUNTRY: Uzbekistan
+
+// DHOOK - Webhook Relay Service and CLI Tool.
+//
+// This library enables real-time webhook relay via WebSocket.
+
+// Models
+export 'src/models/webhook_payload.dart';
+
+// Server
+export 'src/server/relay_server.dart';
+
+// Client
+export 'src/client/cli_agent.dart';
+
+// Logger
+export 'src/utils/logger.dart';
