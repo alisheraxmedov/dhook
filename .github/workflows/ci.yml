@@ -45,9 +45,17 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ vars.SERVER_PORT }}
           script: |
-            cd ~/dhook || git clone https://github.com/alisheraxmedov/dhook.git ~/dhook
-            cd ~/dhook
-            git pull origin main
-            docker-compose down || true
-            docker-compose up -d --build
+            # Clone or update repository
+            if [ -d ~/dhook ]; then
+              cd ~/dhook
+              git pull origin main
+            else
+              git clone git@github.com:alisheraxmedov/dhook.git ~/dhook
+              cd ~/dhook
+            fi
+            
+            # Build and run with Docker
+            docker compose down || true
+            docker compose up -d --build
+            
             echo "DHOOK deployed successfully!"
