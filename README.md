@@ -20,9 +20,9 @@
 DHOOK is a lightweight webhook relay service that allows you to receive webhooks (from GitHub, Stripe, PayMe, etc.) on your local machine during development.
 
 ```
-┌─────────────┐      ┌──────────────────┐      ┌─────────────────┐
-│   GitHub    │──────▶  DHOOK Server   │──────▶  Your Laptop    │
-│   Stripe    │ POST  │  (Your Server)  │  WS   │  localhost:8000 │
+┌─────────────┐       ┌──────────────────┐      ┌─────────────────┐
+│   GitHub    │──────▶│  DHOOK Server    │─────▶│  Your Laptop    │
+│   Stripe    │ POST  │  (Your Server)   │ WS   │  localhost:8000 │
 │   PayMe     │       └──────────────────┘      └─────────────────┘
 └─────────────┘             ▲                          │
                             │                          │
