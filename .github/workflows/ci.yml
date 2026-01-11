@@ -54,6 +54,24 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
       
+      - name: Verify Token Configuration
+        env:
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "============================================"
+          echo "TOKEN VERIFICATION"
+          echo "============================================"
+          if [ -n "$PAT_TOKEN" ]; then
+            echo "✅ PAT_TOKEN is SET (length: ${#PAT_TOKEN})"
+            echo "Token starts with: ${PAT_TOKEN:0:4}..."
+            echo "Using: PAT_TOKEN for git operations"
+          else
+            echo "❌ PAT_TOKEN is NOT SET"
+            echo "Using: GITHUB_TOKEN (will NOT trigger workflows)"
+          fi
+          echo "============================================"
+      
       - name: Bump version
         id: bump
         run: |
