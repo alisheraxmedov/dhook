@@ -34,7 +34,7 @@ jobs:
   # ----------------------------------------
   bump-version:
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, 'release')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -117,7 +117,7 @@ jobs:
           
           # 9. Git operations
           git add pubspec.yaml bin/dhook.dart CHANGELOG.md
-          git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+          git commit -m "chore: release $NEW_VERSION"
           git push origin main
           
           # 10. Create and push tag (triggers publish workflow)
