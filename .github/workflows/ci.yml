@@ -57,44 +57,56 @@ jobs:
       - name: Bump version
         id: bump
         run: |
-          # Read current version from pubspec.yaml
+          # 1. Fetch all tags
+          git fetch --tags
+          
+          # 2. Get current version
           CURRENT_VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //')
           echo "Current version: $CURRENT_VERSION"
           
-          # Parse version components
+          # 3. Parse version components
           MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
           MINOR=$(echo $CURRENT_VERSION | cut -d. -f2)
           PATCH=$(echo $CURRENT_VERSION | cut -d. -f3)
           
-          # Increment patch version
+          # 4. Calculate new version
           NEW_PATCH=$((PATCH + 1))
           NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
+          TAG_NAME="v$NEW_VERSION"
           
-          # Output
-          echo "New version: $NEW_VERSION"
-          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "version_tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
+          # 5. If tag exists, increment to next available version
+          while git rev-parse "$TAG_NAME" >/dev/null 2>&1; do
+            echo "Warning: $TAG_NAME already exists. Trying next..."
+            NEW_PATCH=$((NEW_PATCH + 1))
+            NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
+            TAG_NAME="v$NEW_VERSION"
+          done
           
-          # Update pubspec.yaml
+          echo "New confirmed version: $NEW_VERSION"
+          
+          # 6. Update files
           sed -i "s/^version: .*/version: $NEW_VERSION/" pubspec.yaml
-          
-          # Update version in bin/dhook.dart
           sed -i "s/const String version = '.*';/const String version = '$NEW_VERSION';/" bin/dhook.dart
           
-          # Update CHANGELOG.md
+          # 7. Update CHANGELOG.md
           DATE=$(date +%Y-%m-%d)
           CHANGELOG_ENTRY="## $NEW_VERSION\n\n- Automated release on $DATE\n\n"
           sed -i "1s/^/$CHANGELOG_ENTRY/" CHANGELOG.md
           
-          # Commit changes
+          # 8. Save outputs for other jobs
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "version_tag=$TAG_NAME" >> $GITHUB_OUTPUT
+          
+          # 9. Git operations
           git add pubspec.yaml bin/dhook.dart CHANGELOG.md
           git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
-          git push
-
-          # Verify PAT availability for Tag Push
-          # This push triggers the 'publish' job in the next workflow run
-          git tag "v$NEW_VERSION"
-          git push origin "v$NEW_VERSION"
+          git push origin main
+          
+          # 10. Create and push tag (triggers publish workflow)
+          git tag "$TAG_NAME"
+          git push origin "$TAG_NAME"
+          
+          echo "Success: $TAG_NAME created and pushed!"
 
   # ----------------------------------------
   # Job 3: Publish to pub.dev (Runs ONLY on Tag Push)
