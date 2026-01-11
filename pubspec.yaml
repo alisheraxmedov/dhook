@@ -3,7 +3,7 @@ description: >-
   A lightweight webhook relay service to forward webhooks from cloud to your 
   local development environment in real-time. Alternative to smee.io with 
   self-hosted server support.
-version: 1.0.0
+version: 1.0.7
 repository: https://github.com/alisheraxmedov/dhook
 homepage: https://github.com/alisheraxmedov/dhook
 issue_tracker: https://github.com/alisheraxmedov/dhook/issues
