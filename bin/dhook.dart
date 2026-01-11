@@ -126,7 +126,7 @@ ${bold}EXAMPLES:$reset
   dhook server --port 3000
 
   $dim# Connect client to relay$reset
-  dhook client --server ws://dhook.uz:3000/ws/my-channel --target http://localhost:8000
+  dhook client --server ws://your-server.com:3000/ws/my-channel --target http://localhost:8000
 
 ${dim}Documentation: https://github.com/alisheraxmedov/dhook$reset
 ''');
@@ -176,7 +176,7 @@ ${bold}OPTIONS:$reset
 
 ${bold}EXAMPLE:$reset
   ${dim}dhook client \\
-    --server ws://dhook.uz:3000/ws/my-channel \\
+    --server ws://your-server.com:3000/ws/my-channel \\
     --target http://localhost:8000$reset
 ''');
 }

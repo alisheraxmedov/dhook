@@ -1,10 +1,24 @@
 name: dhook
-description: A sample command-line application.
+description: >-
+  A lightweight webhook relay service to forward webhooks from cloud to your 
+  local development environment in real-time. Alternative to smee.io with 
+  self-hosted server support.
 version: 1.0.0
-# repository: https://github.com/my_org/my_repo
+repository: https://github.com/alisheraxmedov/dhook
+homepage: https://github.com/alisheraxmedov/dhook
+issue_tracker: https://github.com/alisheraxmedov/dhook/issues
+topics:
+  - webhook
+  - cli
+  - development
+  - relay
+  - proxy
 
 environment:
   sdk: ^3.9.2
+
+executables:
+  dhook: dhook
 
 # Add regular dependencies here.
 dependencies:
@@ -19,4 +33,5 @@ dependencies:
 
 dev_dependencies:
   lints: ^6.0.0
+  stream_channel: ^2.1.4
   test: ^1.25.6

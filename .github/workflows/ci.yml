@@ -29,13 +29,83 @@ jobs:
       
       - name: Run tests
         run: dart test
+      
+      - name: Verify pub.dev publishing
+        run: dart pub publish --dry-run
 
   # ----------------------------------------
-  # Job 2: Build Binaries for All Platforms
+  # Job 2: Bump Version & Create Release
+  # ----------------------------------------
+  bump-version:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+      version_tag: ${{ steps.bump.outputs.version_tag }}
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+      - name: Bump version
+        id: bump
+        run: |
+          # Read current version from pubspec.yaml
+          CURRENT_VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //')
+          echo "Current version: $CURRENT_VERSION"
+          
+          # Parse version components
+          MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
+          MINOR=$(echo $CURRENT_VERSION | cut -d. -f2)
+          PATCH=$(echo $CURRENT_VERSION | cut -d. -f3)
+          
+          # Increment patch version
+          NEW_PATCH=$((PATCH + 1))
+          NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
+          echo "New version: $NEW_VERSION"
+          
+          # Update pubspec.yaml
+          sed -i "s/^version: .*/version: $NEW_VERSION/" pubspec.yaml
+          
+          # Update version in bin/dhook.dart
+          sed -i "s/const String version = '.*';/const String version = '$NEW_VERSION';/" bin/dhook.dart
+          
+          # Update CHANGELOG.md
+          DATE=$(date +%Y-%m-%d)
+          CHANGELOG_ENTRY="## $NEW_VERSION\n\n- Automated release on $DATE\n\n"
+          sed -i "1s/^/$CHANGELOG_ENTRY/" CHANGELOG.md
+          
+          # Commit changes
+          git add pubspec.yaml bin/dhook.dart CHANGELOG.md
+          git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+          git push
+          
+          # Create and push tag
+          git tag "v$NEW_VERSION"
+          git push origin "v$NEW_VERSION"
+          
+          # Output for next jobs
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "version_tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
+
+
+
+  # ----------------------------------------
+  # Job 3: Build Binaries for All Platforms
   # ----------------------------------------
   build:
-    needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: bump-version
+    if: needs.bump-version.outputs.new_version != ''
     strategy:
       matrix:
         include:
@@ -52,6 +122,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump-version.outputs.version_tag }}
       
       - uses: dart-lang/setup-dart@v1
         with:
@@ -70,10 +142,60 @@ jobs:
           path: dhook-${{ matrix.name }}${{ matrix.ext }}
 
   # ----------------------------------------
-  # Job 3: Upload Binaries to Server
+  # Job 4: Create GitHub Release
+  # ----------------------------------------
+  release:
+    needs: [bump-version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump-version.outputs.version_tag }}
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: binaries
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.bump-version.outputs.version_tag }}
+          name: Release ${{ needs.bump-version.outputs.version_tag }}
+          body: |
+            ## DHOOK ${{ needs.bump-version.outputs.new_version }}
+            
+            ### Installation
+            
+            **Via pub.dev (Recommended):**
+            ```bash
+            dart pub global activate dhook
+            ```
+            
+            **Via Direct Download:**
+            Download the binary for your platform below.
+            
+            ### Usage
+            ```bash
+            # Start server
+            dhook server --port 3000
+            
+            # Connect client
+            dhook client --server ws://your-server:3000/ws/channel --target http://localhost:8000
+            ```
+          files: |
+            binaries/**/*
+          draft: false
+          prerelease: false
+
+  # ----------------------------------------
+  # Job 5: Upload Binaries to Server
   # ----------------------------------------
   upload-binaries:
-    needs: build
+    needs: [bump-version, build]
     runs-on: ubuntu-latest
     
     steps:
@@ -82,14 +204,10 @@ jobs:
         with:
           path: binaries
       
-      - name: Get version
-        id: version
-        run: echo "version=v$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
-      
       - name: Create version folder on server
         uses: appleboy/ssh-action@v1.0.3
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ needs.bump-version.outputs.version_tag }}
         with:
           host: ${{ vars.SERVER_HOST }}
           username: ${{ vars.SERVER_USER }}
@@ -105,20 +223,20 @@ jobs:
       - name: Copy binaries to server
         uses: appleboy/scp-action@v0.1.7
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ needs.bump-version.outputs.version_tag }}
         with:
           host: ${{ vars.SERVER_HOST }}
           username: ${{ vars.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ vars.SERVER_PORT }}
           source: "binaries/*"
-          target: "~/projects/apps/${{ steps.version.outputs.version }}/"
+          target: "~/projects/apps/${{ needs.bump-version.outputs.version_tag }}/"
           strip_components: 1
       
       - name: Update latest symlink
         uses: appleboy/ssh-action@v1.0.3
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ needs.bump-version.outputs.version_tag }}
         with:
           host: ${{ vars.SERVER_HOST }}
           username: ${{ vars.SERVER_USER }}
@@ -131,7 +249,7 @@ jobs:
             echo "Released $VERSION"
 
   # ----------------------------------------
-  # Job 4: Deploy Docker to Server
+  # Job 6: Deploy Docker to Server
   # ----------------------------------------
   deploy:
     needs: test

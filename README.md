@@ -5,6 +5,7 @@
 **Webhook Relay Service & CLI Tool**
 
 [![Dart](https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=dart&logoColor=white)](https://dart.dev)
+[![pub.dev](https://img.shields.io/pub/v/dhook?style=for-the-badge)](https://pub.dev/packages/dhook)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 
@@ -31,6 +32,16 @@ DHOOK is a lightweight webhook relay service that allows you to receive webhooks
 
 ## 🚀 Quick Start
 
+### Installation
+
+```bash
+# Install globally via pub.dev
+dart pub global activate dhook
+
+# Or install from source
+dart pub global activate --source git https://github.com/alisheraxmedov/dhook.git
+```
+
 ### 1. Deploy on Your Server
 
 ```bash
@@ -41,6 +52,10 @@ ssh user@your-server.com
 git clone https://github.com/alisheraxmedov/dhook.git
 cd dhook
 
+# Configure environment
+cp .env.example .env
+# Edit .env with your server IP
+
 # Run with Docker
 docker-compose up -d
 ```
@@ -48,10 +63,14 @@ docker-compose up -d
 ### 2. CLI Agent (on your machine)
 
 ```bash
+# Set environment variables
+export DHOOK_SERVER=ws://your-server.com:3000/ws/my-channel
+export DHOOK_TARGET=http://localhost:8000
+
 # Run the client
-dart run bin/dhook.dart client \
-  --server ws://your-server.com:3000/ws/my-channel \
-  --target http://localhost:8000
+dhook client \
+  --server $DHOOK_SERVER \
+  --target $DHOOK_TARGET
 ```
 
 ### 3. Configure Your Webhook
@@ -80,17 +99,17 @@ docker-compose down
 
 ```bash
 # Start relay server on default port 3000
-dart run bin/dhook.dart server
+dhook server
 
 # Start on custom port
-dart run bin/dhook.dart server --port 8080
+dhook server --port 8080
 ```
 
 ### Client Commands
 
 ```bash
 # Connect to relay and forward to localhost
-dart run bin/dhook.dart client \
+dhook client \
   --server ws://your-server.com:3000/ws/my-channel \
   --target http://localhost:8000
 ```
@@ -103,6 +122,35 @@ dart run bin/dhook.dart client \
 | `/new` | GET | Generate new channel ID |
 | `/ws/<channel>` | WS | WebSocket connection for CLI |
 | `/webhook/<channel>` | ANY | Receive webhooks |
+
+## 📦 Programmatic Usage
+
+```dart
+import 'package:dhook/dhook.dart';
+
+// Start a relay server
+final server = RelayServer(port: 3000);
+await server.start();
+
+// Start a CLI agent
+final agent = CliAgent(
+  serverUrl: 'ws://your-server.com:3000/ws/my-channel',
+  targetUrl: 'http://localhost:8000',
+);
+await agent.start();
+```
+
+## ⚙️ Configuration
+
+Copy `.env.example` to `.env` and configure:
+
+```bash
+# Server IP address or domain
+DHOOK_SERVER_HOST=your-server-ip
+
+# Server port (default: 3000)
+DHOOK_SERVER_PORT=3000
+```
 
 ## 🏗️ Architecture
 

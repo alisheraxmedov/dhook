@@ -61,12 +61,18 @@ class ConnectionManager {
       _channels.values.fold(0, (sum, set) => sum + set.length);
 
   Future<void> closeAll() async {
-    for (final channel in _channels.values) {
+    final channelsCopy = Map.of(_channels);
+    _channels.clear();
+
+    final List<Future> closeFutures = [];
+
+    for (final channel in channelsCopy.values) {
       for (final socket in channel) {
-        await socket.sink.close();
+        closeFutures.add(socket.sink.close().catchError((_) {}));
       }
     }
-    _channels.clear();
+
+    await Future.wait(closeFutures);
   }
 }
 

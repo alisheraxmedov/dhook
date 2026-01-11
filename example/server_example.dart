@@ -11,7 +11,10 @@ import 'package:dhook/dhook.dart';
 
 void main() async {
   // Configure the server port (default: 3000)
-  final port = int.tryParse(Platform.environment['PORT'] ?? '') ?? 3000;
+  final port =
+      int.tryParse(Platform.environment['DHOOK_SERVER_PORT'] ?? '') ??
+      int.tryParse(Platform.environment['PORT'] ?? '') ??
+      3000;
 
   // Create the relay server
   final server = RelayServer(port: port);
