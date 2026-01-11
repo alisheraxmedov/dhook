@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:dhook/dhook.dart';
 
-const String version = '1.0.0';
+const String version = '1.0.5';
 
 void main(List<String> arguments) async {
   final parser = ArgParser()
