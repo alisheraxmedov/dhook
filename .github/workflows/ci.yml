@@ -9,7 +9,7 @@ on:
 
 jobs:
   # ----------------------------------------
-  # Job 1: Test (Runs on all pushes)
+  # Job 1: Test (Runs on ALL events)
   # ----------------------------------------
   test:
     runs-on: ubuntu-latest
@@ -30,7 +30,7 @@ jobs:
         run: dart test
 
   # ----------------------------------------
-  # Job 2: Bump Version (Runs ONLY on Branch Push)
+  # Job 2: Bump Version (ONLY on branch push to main)
   # ----------------------------------------
   bump-version:
     needs: test
@@ -38,15 +38,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    outputs:
-      new_version: ${{ steps.bump.outputs.new_version }}
-      version_tag: ${{ steps.bump.outputs.version_tag }}
     
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # We prefer PAT_TOKEN if available to trigger next workflow, else GitHub Token (won't trigger next)
           token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
       
       - name: Configure Git
@@ -57,7 +53,6 @@ jobs:
       - name: Verify Token Configuration
         env:
           PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "============================================"
           echo "TOKEN VERIFICATION"
@@ -73,26 +68,25 @@ jobs:
           echo "============================================"
       
       - name: Bump version
-        id: bump
         run: |
-          # 1. Fetch all tags
+          # Fetch all tags
           git fetch --tags
           
-          # 2. Get current version
+          # Get current version
           CURRENT_VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //')
           echo "Current version: $CURRENT_VERSION"
           
-          # 3. Parse version components
+          # Parse version components
           MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
           MINOR=$(echo $CURRENT_VERSION | cut -d. -f2)
           PATCH=$(echo $CURRENT_VERSION | cut -d. -f3)
           
-          # 4. Calculate new version
+          # Calculate new version
           NEW_PATCH=$((PATCH + 1))
           NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
           TAG_NAME="v$NEW_VERSION"
           
-          # 5. If tag exists, increment to next available version
+          # Find next available version if tag exists
           while git rev-parse "$TAG_NAME" >/dev/null 2>&1; do
             echo "Warning: $TAG_NAME already exists. Trying next..."
             NEW_PATCH=$((NEW_PATCH + 1))
@@ -102,46 +96,43 @@ jobs:
           
           echo "New confirmed version: $NEW_VERSION"
           
-          # 6. Update files
+          # Update files
           sed -i "s/^version: .*/version: $NEW_VERSION/" pubspec.yaml
           sed -i "s/const String version = '.*';/const String version = '$NEW_VERSION';/" bin/dhook.dart
           
-          # 7. Update CHANGELOG.md
+          # Update CHANGELOG.md
           DATE=$(date +%Y-%m-%d)
           CHANGELOG_ENTRY="## $NEW_VERSION\n\n- Automated release on $DATE\n\n"
           sed -i "1s/^/$CHANGELOG_ENTRY/" CHANGELOG.md
           
-          # 8. Save outputs for other jobs
-          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "version_tag=$TAG_NAME" >> $GITHUB_OUTPUT
-          
-          # 9. Git operations
+          # Git operations (NO [skip ci] - we want tag to trigger!)
           git add pubspec.yaml bin/dhook.dart CHANGELOG.md
           git commit -m "chore: release $NEW_VERSION"
           git push origin main
           
-          # 10. Create and push tag (triggers publish workflow)
+          # Create and push tag (this will trigger a NEW workflow run)
           git tag "$TAG_NAME"
           git push origin "$TAG_NAME"
           
           echo "Success: $TAG_NAME created and pushed!"
+          echo "A new workflow run will be triggered for the tag."
 
   # ----------------------------------------
-  # Job 3: Publish to pub.dev (Runs ONLY on Tag Push)
+  # Job 3: Publish to pub.dev (ONLY on tag push)
   # ----------------------------------------
   publish:
     needs: test
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     permissions:
-      id-token: write # REQUIRED for OIDC
+      id-token: write
     uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
 
   # ----------------------------------------
-  # Job 4: Build Binaries (Runs ONLY on Tag Push)
+  # Job 4: Build Binaries (ONLY on tag push)
   # ----------------------------------------
   build:
     needs: test
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     strategy:
       matrix:
         include:
@@ -169,11 +160,11 @@ jobs:
           path: dhook-${{ matrix.name }}${{ matrix.ext }}
 
   # ----------------------------------------
-  # Job 5: Create Release (Runs ONLY on Tag Push)
+  # Job 5: Create Release (ONLY on tag push)
   # ----------------------------------------
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -189,11 +180,11 @@ jobs:
           body: "Automated release of ${{ github.ref_name }}"
 
   # ----------------------------------------
-  # Job 6: Upload Binaries (Runs ONLY on Tag Push)
+  # Job 6: Upload Binaries (ONLY on tag push)
   # ----------------------------------------
   upload-binaries:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -237,11 +228,11 @@ jobs:
             ln -s ~/projects/apps/$VERSION ~/projects/apps/latest
 
   # ----------------------------------------
-  # Job 7: Deploy Docker (Runs ONLY on Tag Push)
+  # Job 7: Deploy Docker (ONLY on tag push)
   # ----------------------------------------
   deploy:
     needs: test
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to Server via SSH
