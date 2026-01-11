@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Alisher Axmedov
+// Copyright (c) 2026 Alisher Axmedov
 // Licensed under the MIT License.
 
 /// Client Example - DHOOK CLI Agent
