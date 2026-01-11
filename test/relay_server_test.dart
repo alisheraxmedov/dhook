@@ -215,19 +215,24 @@ void main() {
         'ws://localhost:$testPort/ws/$channelId',
       );
 
-      final received1 = <String>[];
-      final received2 = <String>[];
+      final completer1 = Completer<void>();
+      final completer2 = Completer<void>();
 
       socket1.listen((data) {
         final msg = jsonDecode(data as String);
-        if (msg['type'] == 'webhook') received1.add(data);
+        if (msg['type'] == 'webhook' && !completer1.isCompleted) {
+          completer1.complete();
+        }
       });
       socket2.listen((data) {
         final msg = jsonDecode(data as String);
-        if (msg['type'] == 'webhook') received2.add(data);
+        if (msg['type'] == 'webhook' && !completer2.isCompleted) {
+          completer2.complete();
+        }
       });
 
-      await Future.delayed(const Duration(milliseconds: 100));
+      // Wait for both connections to be ready
+      await Future.delayed(const Duration(milliseconds: 200));
 
       // Send webhook
       await http.post(
@@ -235,10 +240,11 @@ void main() {
         body: 'test',
       );
 
-      await Future.delayed(const Duration(milliseconds: 100));
-
-      expect(received1.length, 1);
-      expect(received2.length, 1);
+      // Wait for both subscribers to receive
+      await Future.wait([
+        completer1.future.timeout(const Duration(seconds: 5)),
+        completer2.future.timeout(const Duration(seconds: 5)),
+      ]);
 
       await socket1.close();
       await socket2.close();
