@@ -1,3 +1,7 @@
+## 1.0.9
+
+- Automated release on 2026-01-14
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
