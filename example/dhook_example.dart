@@ -35,8 +35,8 @@ import 'package:dhook/dhook.dart';
 
 /// Example: Starting a relay server programmatically
 Future<void> startServerExample() async {
-  // Create a relay server on port 3000
-  final server = RelayServer(port: 3000);
+  // Create a relay server on port 3000 with rate limiting
+  final server = RelayServer(port: 3000, rateLimit: 100);
 
   // Start the server
   await server.start();
@@ -45,6 +45,8 @@ Future<void> startServerExample() async {
   // The server will listen for:
   // - WebSocket connections at /ws/<channel-id>
   // - Webhook requests at /webhook/<channel-id>
+  // - Max 100 requests/minute per IP (rate limiting)
+  // - Max 1MB body size per request
 }
 
 /// Example: Starting a CLI agent programmatically
