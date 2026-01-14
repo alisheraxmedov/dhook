@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
@@ -9,6 +10,7 @@ import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../models/webhook_payload.dart';
+import 'rate_limiter.dart';
 
 /// Manages WebSocket connections for all channels.
 class ConnectionManager {
@@ -107,13 +109,17 @@ class RelayServer {
   late final HeartbeatManager _heartbeat;
   HttpServer? _server;
 
-  RelayServer({this.port = 3000}) {
+  final RateLimiter _rateLimiter;
+
+  RelayServer({this.port = 3000, int rateLimit = 100})
+    : _rateLimiter = RateLimiter(maxRequests: rateLimit) {
     _heartbeat = HeartbeatManager(_connections);
   }
 
   Future<void> start() async {
     final handler = const Pipeline()
         .addMiddleware(logRequests())
+        .addMiddleware(_rateLimiter.middleware)
         .addMiddleware(_cors())
         .addHandler(_router.call);
 
@@ -140,7 +146,7 @@ class RelayServer {
     );
 
     router.get('/new', (Request req) {
-      final channelId = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
+      final channelId = _generateSecureChannelId();
       return Response.found('/channel/$channelId');
     });
 
@@ -193,6 +199,15 @@ class RelayServer {
   ) async {
     final bodyString = await request.readAsString();
 
+    // Body size limit: 1MB
+    if (bodyString.length > 1024 * 1024) {
+      return Response(
+        413,
+        body: jsonEncode({'error': 'Payload too large', 'maxSize': '1MB'}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+
     final payload = WebhookPayload(
       method: request.method,
       path: originalPath,
@@ -225,4 +240,11 @@ class RelayServer {
         if (req.method == 'OPTIONS') return Response.ok('', headers: headers);
         return (await h(req)).change(headers: headers);
       };
+
+  /// Generates cryptographically secure channel ID [32 hex chars]
+  static String _generateSecureChannelId() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  }
 }
