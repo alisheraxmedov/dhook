@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🪝 DHOOK
+<img src="icon_dhook.png" alt="dhook" width="120" />
+
+# DHOOK
 
 **Webhook Relay Service & CLI Tool**
 
