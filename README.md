@@ -64,7 +64,7 @@ docker-compose up -d
 
 ```bash
 # Set environment variables
-export DHOOK_SERVER=ws://your-server.com:3000/ws/my-channel
+export DHOOK_SERVER=wss://your-server.com/ws/my-channel
 export DHOOK_TARGET=http://localhost:8000
 
 # Run the client
@@ -77,7 +77,7 @@ dhook client \
 
 Point your webhook to:
 ```
-http://your-server.com:3000/webhook/my-channel
+https://your-server.com/webhook/my-channel
 ```
 
 ## 🐳 Docker Deployment
@@ -110,7 +110,7 @@ dhook server --port 8080
 ```bash
 # Connect to relay and forward to localhost
 dhook client \
-  --server ws://your-server.com:3000/ws/my-channel \
+  --server wss://your-server.com/ws/my-channel \
   --target http://localhost:8000
 ```
 
@@ -119,9 +119,10 @@ dhook client \
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/` | GET | Health check |
-| `/new` | GET | Generate new channel ID |
+| `/new` | GET | Generate new channel (redirects to /channel/<id>) |
 | `/ws/<channel>` | WS | WebSocket connection for CLI |
 | `/webhook/<channel>` | ANY | Receive webhooks |
+| `/webhook/<channel>/<path>` | ANY | Receive webhooks with subpath |
 
 ## 📦 Programmatic Usage
 
@@ -134,7 +135,7 @@ await server.start();
 
 // Start a CLI agent
 final agent = CliAgent(
-  serverUrl: 'ws://your-server.com:3000/ws/my-channel',
+  serverUrl: 'wss://your-server.com/ws/my-channel',
   targetUrl: 'http://localhost:8000',
 );
 await agent.start();
