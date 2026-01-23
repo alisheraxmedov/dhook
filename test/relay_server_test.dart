@@ -37,7 +37,7 @@ void main() {
       expect(body['service'], 'DHOOK');
     });
 
-    test('GET /new redirects to new channel', () async {
+    test('GET /new redirects to new channel with secure ID', () async {
       final client = http.Client();
       final request = http.Request(
         'GET',
@@ -48,9 +48,29 @@ void main() {
       final streamedResponse = await client.send(request);
 
       expect(streamedResponse.statusCode, 302);
-      expect(streamedResponse.headers['location'], startsWith('/channel/'));
+      final location = streamedResponse.headers['location']!;
+      expect(location, startsWith('/channel/'));
+
+      // Verify channel ID is 32 hex characters (cryptographically secure)
+      final channelId = location.replaceFirst('/channel/', '');
+      expect(channelId.length, 32);
+      expect(RegExp(r'^[0-9a-f]+$').hasMatch(channelId), isTrue);
 
       client.close();
+    });
+
+    test('POST /webhook rejects body larger than 1MB', () async {
+      final channelId = 'size-limit-test';
+      final largeBody = 'x' * (1024 * 1024 + 1); // 1MB + 1 byte
+
+      final response = await http.post(
+        Uri.parse('http://localhost:$testPort/webhook/$channelId'),
+        body: largeBody,
+      );
+
+      expect(response.statusCode, 413);
+      final body = jsonDecode(response.body);
+      expect(body['error'], 'Payload too large');
     });
 
     test('POST /webhook/<channel> accepts webhook', () async {

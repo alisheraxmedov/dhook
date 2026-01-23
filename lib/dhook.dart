@@ -1,4 +1,4 @@
-// AUTHOR: Alisher Axmedov 
+// AUTHOR: Alisher Axmedov
 // EMAIL: alisheraxmedov4x4@gmail.com
 // LICENSE: MIT
 // COUNTRY: Uzbekistan
@@ -12,6 +12,7 @@ export 'src/models/webhook_payload.dart';
 
 // Server
 export 'src/server/relay_server.dart';
+export 'src/server/rate_limiter.dart';
 
 // Client
 export 'src/client/cli_agent.dart';

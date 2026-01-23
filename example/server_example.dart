@@ -16,8 +16,8 @@ void main() async {
       int.tryParse(Platform.environment['PORT'] ?? '') ??
       3000;
 
-  // Create the relay server
-  final server = RelayServer(port: port);
+  // Create the relay server with rate limiting (100 requests/minute per IP)
+  final server = RelayServer(port: port, rateLimit: 100);
 
   // Handle graceful shutdown
   ProcessSignal.sigint.watch().listen((_) async {
