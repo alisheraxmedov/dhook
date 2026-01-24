@@ -42,9 +42,8 @@ class CliAgent {
 
     if (apiKey != null && apiKey!.isNotEmpty) {
       final uri = Uri.parse(serverUrl);
-      final params = Map<String, String>.from(uri.queryParameters);
-      params['api_key'] = apiKey!;
-      connectUrl = uri.replace(queryParameters: params).toString();
+      final separator = uri.hasQuery ? '&' : '?';
+      connectUrl = '$serverUrl${separator}api_key=$apiKey';
     }
 
     DLogger.connection('Connecting', serverUrl);
