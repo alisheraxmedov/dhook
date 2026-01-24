@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [1.0.11] - 2026-01-24
+
+### Added
+- **SQLite Webhook Logging** for request history
+  - `--log` flag to enable logging
+  - `--log-db` option for custom database path
+  - WebhookLogger service with query methods
+
+### Fixed
+- URL parsing bug when adding api_key query parameter
+- Image URLs for pub.dev compatibility
+
+---
+
+## [1.0.10] - 2026-01-24
+
 ### Added
 - **API Key Authentication** enabled by default for security
   - `--no-auth` flag to disable authentication (NOT recommended)
