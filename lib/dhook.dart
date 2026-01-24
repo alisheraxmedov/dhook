@@ -13,6 +13,7 @@ export 'src/models/webhook_payload.dart';
 // Server
 export 'src/server/relay_server.dart';
 export 'src/server/rate_limiter.dart';
+export 'src/server/api_key_manager.dart';
 
 // Client
 export 'src/client/cli_agent.dart';

@@ -10,6 +10,7 @@ import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../models/webhook_payload.dart';
+import 'api_key_manager.dart';
 import 'rate_limiter.dart';
 
 /// Manages WebSocket connections for all channels.
@@ -105,14 +106,23 @@ class HeartbeatManager {
 /// DHOOK Relay Server - receives webhooks and forwards to connected clients.
 class RelayServer {
   final int port;
+  final bool enableAuth;
   final ConnectionManager _connections = ConnectionManager();
   late final HeartbeatManager _heartbeat;
   HttpServer? _server;
 
   final RateLimiter _rateLimiter;
+  final ApiKeyManager? _apiKeyManager;
 
-  RelayServer({this.port = 3000, int rateLimit = 100})
-    : _rateLimiter = RateLimiter(maxRequests: rateLimit) {
+  RelayServer({
+    this.port = 3000,
+    int rateLimit = 100,
+    this.enableAuth = false,
+    String? apiKeyStoragePath,
+  }) : _rateLimiter = RateLimiter(maxRequests: rateLimit),
+       _apiKeyManager = apiKeyStoragePath != null || false
+           ? ApiKeyManager(storagePath: apiKeyStoragePath)
+           : null {
     _heartbeat = HeartbeatManager(_connections);
   }
 
@@ -150,13 +160,90 @@ class RelayServer {
       return Response.found('/channel/$channelId');
     });
 
-    router.get('/ws/<channelId>', (Request request, String channelId) {
-      return _wsHandler(channelId)(request);
-    });
+    router.get('/ws/<channelId>', _authenticatedWsHandler);
     router.all('/webhook/<channelId>', _webhookHandler);
     router.all('/webhook/<channelId>/<remaining|.*>', _webhookHandlerWithPath);
 
+    // API Key management endpoints
+    router.post('/api/keys', _createApiKey);
+    router.get('/api/keys', _listChannels);
+
     return router;
+  }
+
+  Future<Response> _authenticatedWsHandler(
+    Request request,
+    String channelId,
+  ) async {
+    if (enableAuth && _apiKeyManager != null) {
+      final apiKey =
+          request.headers['x-api-key'] ??
+          request.requestedUri.queryParameters['api_key'];
+
+      if (!_apiKeyManager.validateKeyForChannel(apiKey, channelId)) {
+        return Response.forbidden(
+          jsonEncode({'error': 'Invalid or missing API key'}),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
+    }
+    return _wsHandler(channelId)(request);
+  }
+
+  Future<Response> _createApiKey(Request request) async {
+    if (_apiKeyManager == null) {
+      return Response(
+        503,
+        body: jsonEncode({'error': 'Auth not enabled'}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+
+    try {
+      final bodyStr = await request.readAsString();
+      final body = bodyStr.isNotEmpty
+          ? jsonDecode(bodyStr) as Map<String, dynamic>
+          : <String, dynamic>{};
+
+      final channelId =
+          (body['channel'] as String?) ?? _generateSecureChannelId();
+      final name = (body['name'] as String?) ?? 'default';
+
+      final key = _apiKeyManager.generateKey(channelId, name: name);
+
+      return Response.ok(
+        jsonEncode({
+          'api_key': key,
+          'channel': channelId,
+          'webhook_url': '/webhook/$channelId',
+          'websocket_url': '/ws/$channelId',
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+    } catch (e) {
+      return Response.badRequest(
+        body: jsonEncode({'error': 'Invalid request body'}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+  }
+
+  Response _listChannels(Request request) {
+    if (_apiKeyManager == null) {
+      return Response(
+        503,
+        body: jsonEncode({'error': 'Auth not enabled'}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+
+    return Response.ok(
+      jsonEncode({
+        'channels': _apiKeyManager.channels,
+        'total': _apiKeyManager.keyCount,
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
   }
 
   Handler _wsHandler(String channelId) {

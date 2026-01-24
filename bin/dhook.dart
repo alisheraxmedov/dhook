@@ -17,6 +17,12 @@ void main(List<String> arguments) async {
       defaultsTo: '3000',
       help: 'Port to run the relay server on',
     )
+    ..addFlag(
+      'no-auth',
+      help: 'Disable API key authentication (NOT recommended)',
+      defaultsTo: false,
+    )
+    ..addOption('keys-file', help: 'Path to API keys storage file')
     ..addFlag('help', abbr: 'h', negatable: false);
   parser.addCommand('server', serverParser);
 
@@ -28,6 +34,7 @@ void main(List<String> arguments) async {
       abbr: 't',
       help: 'Local target URL (http://localhost:8000)',
     )
+    ..addOption('api-key', abbr: 'k', help: 'API key for authentication')
     ..addFlag('help', abbr: 'h', negatable: false);
   parser.addCommand('client', clientParser);
 
@@ -54,8 +61,21 @@ void main(List<String> arguments) async {
         return;
       }
       final port = int.parse(results.command!['port']);
+      final disableAuth = results.command!['no-auth'] == true;
+      final keysFile = results.command!['keys-file'] as String?;
+
       DLogger.banner('DHOOK Server', version, port);
-      final server = RelayServer(port: port);
+      if (disableAuth) {
+        print('⚠️  WARNING: Authentication DISABLED (not recommended)');
+      } else {
+        print('🔐 API Key authentication enabled');
+      }
+
+      final server = RelayServer(
+        port: port,
+        enableAuth: !disableAuth,
+        apiKeyStoragePath: keysFile ?? (!disableAuth ? 'keys.json' : null),
+      );
       await server.start();
     }
     // Client command
@@ -66,6 +86,7 @@ void main(List<String> arguments) async {
       }
       final serverUrl = results.command!['server'];
       final targetUrl = results.command!['target'];
+      final apiKey = results.command!['api-key'] as String?;
 
       if (serverUrl == null || targetUrl == null) {
         DLogger.error('Missing required options: --server and --target');
@@ -73,8 +94,12 @@ void main(List<String> arguments) async {
         exit(1);
       }
 
-      _printClientBanner(serverUrl, targetUrl);
-      final agent = CliAgent(serverUrl: serverUrl, targetUrl: targetUrl);
+      _printClientBanner(serverUrl, targetUrl, apiKey: apiKey);
+      final agent = CliAgent(
+        serverUrl: serverUrl,
+        targetUrl: targetUrl,
+        apiKey: apiKey,
+      );
       await agent.start();
     }
   } catch (e) {
@@ -147,11 +172,14 @@ ${bold}USAGE:$reset
   dhook server [options]
 
 ${bold}OPTIONS:$reset
-  $yellow-p, --port$reset <port>    Port to run the server on (default: 3000)
+  $yellow-p, --port$reset <port>     Port to run the server on (default: 3000)
+  $yellow    --no-auth$reset        Disable API key authentication (NOT recommended)
+  $yellow    --keys-file$reset      Path to API keys storage file
   $yellow-h, --help$reset           Show this help
 
-${bold}EXAMPLE:$reset
+${bold}EXAMPLES:$reset
   ${dim}dhook server --port 3000$reset
+  ${dim}dhook server --port 3000 --no-auth  # Local dev only!$reset
 ''');
 }
 
@@ -170,29 +198,37 @@ ${bold}USAGE:$reset
   dhook client [options]
 
 ${bold}OPTIONS:$reset
-  $yellow-s, --server$reset <url>    WebSocket URL of the relay server (required)
-  $yellow-t, --target$reset <url>    Local URL to forward webhooks to (required)
-  $yellow-h, --help$reset            Show this help
+  $yellow-s, --server$reset <url>   WebSocket URL of the relay server (required)
+  $yellow-t, --target$reset <url>   Local URL to forward webhooks to (required)
+  $yellow-k, --api-key$reset        API key for authentication
+  $yellow-h, --help$reset           Show this help
 
-${bold}EXAMPLE:$reset
+${bold}EXAMPLES:$reset
   ${dim}dhook client \\
     --server ws://your-server.com:3000/ws/my-channel \\
     --target http://localhost:8000$reset
+  ${dim}dhook client -s wss://server/ws/ch -t http://localhost:8000 -k dhk_xxx$reset
 ''');
 }
 
-void _printClientBanner(String serverUrl, String targetUrl) {
+void _printClientBanner(String serverUrl, String targetUrl, {String? apiKey}) {
   const cyan = '\x1B[36m';
   const green = '\x1B[32m';
+  const yellow = '\x1B[33m';
   const reset = '\x1B[0m';
   const bold = '\x1B[1m';
   const dim = '\x1B[2m';
+
+  final authStatus = apiKey != null
+      ? '$green●$reset Auth:   ${yellow}API Key$reset'
+      : '$dim○ Auth:   None$reset';
 
   print('''
 $dim──────────────────────────────────────────────────$reset
   $bold${cyan}DHOOK Client$reset ${dim}v$version$reset
   $green●$reset Relay:  $bold$serverUrl$reset
   $green●$reset Target: $bold$targetUrl$reset
+  $authStatus
 $dim──────────────────────────────────────────────────$reset
 ''');
 }

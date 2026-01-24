@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🪝 DHOOK
+<img src="icon_dhook.png" alt="dhook" width="120" />
+
+# DHOOK
 
 **Webhook Relay Service & CLI Tool**
 
@@ -15,20 +17,13 @@
 
 ---
 
-## 📖 What is DHOOK?
+## What is DHOOK?
 
-DHOOK is a lightweight webhook relay service that allows you to receive webhooks (from GitHub, Stripe, PayMe, etc.) on your local machine during development.
+DHOOK is a lightweight, self-hosted webhook relay service designed for developers. When building applications that integrate with external services like GitHub, Stripe, PayMe, or Telegram, you often need to receive webhooks during development. The problem is that these services require a publicly accessible URL, but your local development machine typically sits behind a NAT or firewall.
 
-```
-┌─────────────┐       ┌──────────────────┐      ┌─────────────────┐
-│   GitHub    │──────▶│  DHOOK Server    │─────▶│  Your Laptop    │
-│   Stripe    │ POST  │  (Your Server)   │ WS   │  localhost:8000 │
-│   PayMe     │       └──────────────────┘      └─────────────────┘
-└─────────────┘             ▲                          │
-                            │                          │
-                     Webhook sent here         CLI Agent receives
-                                               and forwards locally
-```
+DHOOK solves this by acting as a relay between the internet and your local machine. You deploy the DHOOK server on any VPS or cloud server with a public IP, then run the DHOOK client on your local machine. The client connects to the server via WebSocket and receives all incoming webhooks in real-time, forwarding them to your local application. This allows you to develop and test webhook integrations without exposing your machine to the internet or paying for tunneling services.
+
+![structure](images/structure.png)
 
 ## 🚀 Quick Start
 
@@ -52,10 +47,6 @@ ssh user@your-server.com
 git clone https://github.com/alisheraxmedov/dhook.git
 cd dhook
 
-# Configure environment
-cp .env.example .env
-# Edit .env with your server IP
-
 # Run with Docker
 docker-compose up -d
 ```
@@ -63,21 +54,52 @@ docker-compose up -d
 ### 2. CLI Agent (on your machine)
 
 ```bash
-# Set environment variables
-export DHOOK_SERVER=ws://your-server.com:3000/ws/my-channel
-export DHOOK_TARGET=http://localhost:8000
-
 # Run the client
 dhook client \
-  --server $DHOOK_SERVER \
-  --target $DHOOK_TARGET
+  --server wss://your-server.com/ws/my-channel \
+  --target http://localhost:8000
 ```
 
 ### 3. Configure Your Webhook
 
 Point your webhook to:
 ```
-http://your-server.com:3000/webhook/my-channel
+https://your-server.com/webhook/my-channel
+```
+
+## 🔐 Authentication
+
+DHOOK uses API key authentication by default to secure your channels.
+
+### Create API Key
+
+```bash
+# First, start the server
+dhook server --port 3000
+
+# Create API key for your channel
+curl -X POST https://your-server.com/api/keys \
+  -H "Content-Type: application/json" \
+  -d '{"channel": "my-channel", "name": "production"}'
+
+# Response:
+# {"api_key": "dhk_xxx...", "channel": "my-channel", ...}
+```
+
+### Connect with API Key
+
+```bash
+dhook client \
+  --server wss://your-server.com/ws/my-channel \
+  --target http://localhost:8000 \
+  --api-key dhk_xxx...
+```
+
+### Disable Auth (Local Development Only)
+
+```bash
+# ⚠️ NOT recommended for production!
+dhook server --port 3000 --no-auth
 ```
 
 ## 🐳 Docker Deployment
@@ -103,6 +125,9 @@ dhook server
 
 # Start on custom port
 dhook server --port 8080
+
+# Start with API key authentication
+dhook server --port 3000 --auth
 ```
 
 ### Client Commands
@@ -110,8 +135,14 @@ dhook server --port 8080
 ```bash
 # Connect to relay and forward to localhost
 dhook client \
-  --server ws://your-server.com:3000/ws/my-channel \
+  --server wss://your-server.com/ws/my-channel \
   --target http://localhost:8000
+
+# With API key authentication
+dhook client \
+  --server wss://your-server.com/ws/my-channel \
+  --target http://localhost:8000 \
+  --api-key dhk_your_api_key
 ```
 
 ### API Endpoints
@@ -119,9 +150,12 @@ dhook client \
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/` | GET | Health check |
-| `/new` | GET | Generate new channel ID |
+| `/new` | GET | Generate new channel (redirects to /channel/<id>) |
 | `/ws/<channel>` | WS | WebSocket connection for CLI |
 | `/webhook/<channel>` | ANY | Receive webhooks |
+| `/webhook/<channel>/<path>` | ANY | Receive webhooks with subpath |
+| `/api/keys` | POST | Create new API key (auth mode) |
+| `/api/keys` | GET | List registered channels (auth mode) |
 
 ## 📦 Programmatic Usage
 
@@ -132,24 +166,21 @@ import 'package:dhook/dhook.dart';
 final server = RelayServer(port: 3000);
 await server.start();
 
+// Start with authentication
+final authServer = RelayServer(
+  port: 3000,
+  enableAuth: true,
+  apiKeyStoragePath: 'keys.json',
+);
+await authServer.start();
+
 // Start a CLI agent
 final agent = CliAgent(
-  serverUrl: 'ws://your-server.com:3000/ws/my-channel',
+  serverUrl: 'wss://your-server.com/ws/my-channel',
   targetUrl: 'http://localhost:8000',
+  apiKey: 'dhk_xxx...', // optional
 );
 await agent.start();
-```
-
-## ⚙️ Configuration
-
-Copy `.env.example` to `.env` and configure:
-
-```bash
-# Server IP address or domain
-DHOOK_SERVER_HOST=your-server-ip
-
-# Server port (default: 3000)
-DHOOK_SERVER_PORT=3000
 ```
 
 ## 🏗️ Architecture
@@ -157,14 +188,16 @@ DHOOK_SERVER_PORT=3000
 ```
 dhook/
 ├── bin/
-│   └── dhook.dart          # CLI entry point
+│   └── dhook.dart              # CLI entry point
 ├── lib/
-│   ├── dhook.dart          # Library exports
+│   ├── dhook.dart              # Library exports
 │   └── src/
 │       ├── client/
-│       │   └── cli_agent.dart      # WebSocket client
+│       │   └── cli_agent.dart        # WebSocket client
 │       ├── server/
-│       │   └── relay_server.dart   # HTTP/WebSocket server
+│       │   ├── relay_server.dart     # HTTP/WebSocket server
+│       │   ├── api_key_manager.dart  # API key authentication
+│       │   └── rate_limiter.dart     # DoS protection
 │       ├── models/
 │       │   └── webhook_payload.dart
 │       └── utils/
@@ -172,6 +205,14 @@ dhook/
 ├── Dockerfile
 └── docker-compose.yml
 ```
+
+## 🔒 Security Features
+
+- **API Key Authentication**: Secure channels with `dhk_` prefixed tokens
+- **Rate Limiting**: 100 requests/minute per IP (DoS protection)
+- **Body Size Limit**: 1MB max for webhook payloads
+- **Cryptographic IDs**: Secure channel ID generation
+- **TLS/SSL Support**: Use with Nginx reverse proxy
 
 ## 📄 License
 
@@ -183,6 +224,10 @@ MIT License - see [LICENSE](LICENSE) for details.
 - GitHub: [@alisheraxmedov](https://github.com/alisheraxmedov)
 - Email: alisheraxmedov4x4@gmail.com
 
+## 🤝 Contributing
+
+We welcome contributions from the community! If you would like to contribute to this project, please read our [Contributing Guidelines](CONTRIBUTING.md) for detailed instructions on how to get started.
+
 ---
 
 <div align="center">
@@ -190,5 +235,3 @@ MIT License - see [LICENSE](LICENSE) for details.
 Made with ❤️ in Uzbekistan 🇺🇿
 
 </div>
-
-
