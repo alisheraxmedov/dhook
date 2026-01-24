@@ -7,9 +7,38 @@ services:
     restart: unless-stopped
     environment:
       - TZ=Asia/Tashkent
+      # - DHOOK_AUTH=true  # Uncomment to enable API key authentication
+    volumes:
+      - dhook-data:/app/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/"]
       interval: 5m
       timeout: 10s
       retries: 3
       start_period: 30s
+    command: ["./dhook-server", "server", "--port", "3000"]
+    # For auth mode, use:
+    # command: ["./dhook-server", "server", "--port", "3000", "--auth", "--keys-file", "/app/data/keys.json"]
+
+volumes:
+  dhook-data:
+
+# =============================================================================
+# PRODUCTION with Nginx (TLS/SSL)
+# =============================================================================
+# To use with external Nginx reverse proxy (recommended):
+#
+# 1. Change ports to expose only internally:
+#    ports:
+#      - "127.0.0.1:3000:3000"
+#
+# 2. Configure Nginx with WebSocket proxy:
+#    location /ws/ {
+#        proxy_pass http://127.0.0.1:3000;
+#        proxy_http_version 1.1;
+#        proxy_set_header Upgrade $http_upgrade;
+#        proxy_set_header Connection "upgrade";
+#        proxy_read_timeout 86400;
+#    }
+#
+# See README.md for full Nginx configuration example.

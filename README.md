@@ -45,10 +45,6 @@ ssh user@your-server.com
 git clone https://github.com/alisheraxmedov/dhook.git
 cd dhook
 
-# Configure environment
-cp .env.example .env
-# Edit .env with your server IP
-
 # Run with Docker
 docker-compose up -d
 ```
@@ -56,14 +52,10 @@ docker-compose up -d
 ### 2. CLI Agent (on your machine)
 
 ```bash
-# Set environment variables
-export DHOOK_SERVER=wss://your-server.com/ws/my-channel
-export DHOOK_TARGET=http://localhost:8000
-
 # Run the client
 dhook client \
-  --server $DHOOK_SERVER \
-  --target $DHOOK_TARGET
+  --server wss://your-server.com/ws/my-channel \
+  --target http://localhost:8000
 ```
 
 ### 3. Configure Your Webhook
@@ -71,6 +63,40 @@ dhook client \
 Point your webhook to:
 ```
 https://your-server.com/webhook/my-channel
+```
+
+## 🔐 Authentication (Optional)
+
+DHOOK supports API key authentication to secure your channels.
+
+### Enable Auth on Server
+
+```bash
+# Start server with authentication
+dhook server --port 3000 --auth
+
+# Or with Docker (edit docker-compose.yml command)
+command: ["./dhook-server", "server", "--port", "3000", "--auth"]
+```
+
+### Create API Key
+
+```bash
+curl -X POST https://your-server.com/api/keys \
+  -H "Content-Type: application/json" \
+  -d '{"channel": "my-channel", "name": "production"}'
+
+# Response:
+# {"api_key": "dhk_xxx...", "channel": "my-channel", ...}
+```
+
+### Connect with API Key
+
+```bash
+dhook client \
+  --server wss://your-server.com/ws/my-channel \
+  --target http://localhost:8000 \
+  --api-key dhk_xxx...
 ```
 
 ## 🐳 Docker Deployment
@@ -96,6 +122,9 @@ dhook server
 
 # Start on custom port
 dhook server --port 8080
+
+# Start with API key authentication
+dhook server --port 3000 --auth
 ```
 
 ### Client Commands
@@ -105,6 +134,12 @@ dhook server --port 8080
 dhook client \
   --server wss://your-server.com/ws/my-channel \
   --target http://localhost:8000
+
+# With API key authentication
+dhook client \
+  --server wss://your-server.com/ws/my-channel \
+  --target http://localhost:8000 \
+  --api-key dhk_your_api_key
 ```
 
 ### API Endpoints
@@ -116,6 +151,8 @@ dhook client \
 | `/ws/<channel>` | WS | WebSocket connection for CLI |
 | `/webhook/<channel>` | ANY | Receive webhooks |
 | `/webhook/<channel>/<path>` | ANY | Receive webhooks with subpath |
+| `/api/keys` | POST | Create new API key (auth mode) |
+| `/api/keys` | GET | List registered channels (auth mode) |
 
 ## 📦 Programmatic Usage
 
@@ -126,24 +163,21 @@ import 'package:dhook/dhook.dart';
 final server = RelayServer(port: 3000);
 await server.start();
 
+// Start with authentication
+final authServer = RelayServer(
+  port: 3000,
+  enableAuth: true,
+  apiKeyStoragePath: 'keys.json',
+);
+await authServer.start();
+
 // Start a CLI agent
 final agent = CliAgent(
   serverUrl: 'wss://your-server.com/ws/my-channel',
   targetUrl: 'http://localhost:8000',
+  apiKey: 'dhk_xxx...', // optional
 );
 await agent.start();
-```
-
-## ⚙️ Configuration
-
-Copy `.env.example` to `.env` and configure:
-
-```bash
-# Server IP address or domain
-DHOOK_SERVER_HOST=your-server-ip
-
-# Server port (default: 3000)
-DHOOK_SERVER_PORT=3000
 ```
 
 ## 🏗️ Architecture
@@ -151,14 +185,16 @@ DHOOK_SERVER_PORT=3000
 ```
 dhook/
 ├── bin/
-│   └── dhook.dart          # CLI entry point
+│   └── dhook.dart              # CLI entry point
 ├── lib/
-│   ├── dhook.dart          # Library exports
+│   ├── dhook.dart              # Library exports
 │   └── src/
 │       ├── client/
-│       │   └── cli_agent.dart      # WebSocket client
+│       │   └── cli_agent.dart        # WebSocket client
 │       ├── server/
-│       │   └── relay_server.dart   # HTTP/WebSocket server
+│       │   ├── relay_server.dart     # HTTP/WebSocket server
+│       │   ├── api_key_manager.dart  # API key authentication
+│       │   └── rate_limiter.dart     # DoS protection
 │       ├── models/
 │       │   └── webhook_payload.dart
 │       └── utils/
@@ -166,6 +202,14 @@ dhook/
 ├── Dockerfile
 └── docker-compose.yml
 ```
+
+## 🔒 Security Features
+
+- **API Key Authentication**: Secure channels with `dhk_` prefixed tokens
+- **Rate Limiting**: 100 requests/minute per IP (DoS protection)
+- **Body Size Limit**: 1MB max for webhook payloads
+- **Cryptographic IDs**: Secure channel ID generation
+- **TLS/SSL Support**: Use with Nginx reverse proxy
 
 ## 📄 License
 
@@ -179,7 +223,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## 🤝 Contributing
 
-We welcome contributions from the community! If you would like to contribute to this project, please read our [Contributing Guidelines](CONTRIBUTE.md) for detailed instructions on how to get started.
+We welcome contributions from the community! If you would like to contribute to this project, please read our [Contributing Guidelines](CONTRIBUTING.md) for detailed instructions on how to get started.
 
 ---
 

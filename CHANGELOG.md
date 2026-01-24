@@ -8,12 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **API Key Authentication** for secure channel access
+  - `--auth` flag for server to enable authentication
+  - `--api-key` flag for client to provide authentication token
+  - `POST /api/keys` endpoint to generate new API keys
+  - `GET /api/keys` endpoint to list registered channels
+  - SHA-256 hashed key storage for security
+  - Persistent key storage with `--keys-file` option
 - Cryptographically secure channel IDs (32 hex characters)
 - Rate limiting middleware (100 requests/minute per IP)
 - Body size limit (1MB max for webhook payloads)
 
 ### Security
 - Channel IDs are now generated using `Random.secure()` to prevent guessing
+- API keys use `dhk_` prefix with 256-bit entropy
+- Keys are stored as SHA-256 hashes (raw keys never stored)
 - Added DoS protection via rate limiting
 - Added memory protection via body size limit
 
