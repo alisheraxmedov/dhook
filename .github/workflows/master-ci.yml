@@ -24,3 +24,29 @@ jobs:
       
       - name: Run tests
         run: dart test
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ vars.SERVER_HOST }}
+          username: ${{ vars.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ vars.SERVER_PORT }}
+          script: |
+            mkdir -p ~/projects
+            if [ -d ~/projects/dhook ]; then
+              cd ~/projects/dhook
+              git fetch origin
+              git checkout master
+              git reset --hard origin/master
+            else
+              git clone -b master https://github.com/alisheraxmedov/dhook.git ~/projects/dhook
+              cd ~/projects/dhook
+            fi
+            docker compose down || true
+            docker compose up -d --build
