@@ -17,7 +17,11 @@ void main(List<String> arguments) async {
       defaultsTo: '3000',
       help: 'Port to run the relay server on',
     )
-    ..addFlag('auth', help: 'Enable API key authentication', defaultsTo: false)
+    ..addFlag(
+      'no-auth',
+      help: 'Disable API key authentication (NOT recommended)',
+      defaultsTo: false,
+    )
     ..addOption('keys-file', help: 'Path to API keys storage file')
     ..addFlag('help', abbr: 'h', negatable: false);
   parser.addCommand('server', serverParser);
@@ -57,18 +61,20 @@ void main(List<String> arguments) async {
         return;
       }
       final port = int.parse(results.command!['port']);
-      final enableAuth = results.command!['auth'] == true;
+      final disableAuth = results.command!['no-auth'] == true;
       final keysFile = results.command!['keys-file'] as String?;
 
       DLogger.banner('DHOOK Server', version, port);
-      if (enableAuth) {
+      if (disableAuth) {
+        print('⚠️  WARNING: Authentication DISABLED (not recommended)');
+      } else {
         print('🔐 API Key authentication enabled');
       }
 
       final server = RelayServer(
         port: port,
-        enableAuth: enableAuth,
-        apiKeyStoragePath: keysFile ?? (enableAuth ? 'keys.json' : null),
+        enableAuth: !disableAuth,
+        apiKeyStoragePath: keysFile ?? (!disableAuth ? 'keys.json' : null),
       );
       await server.start();
     }
@@ -167,13 +173,13 @@ ${bold}USAGE:$reset
 
 ${bold}OPTIONS:$reset
   $yellow-p, --port$reset <port>     Port to run the server on (default: 3000)
-  $yellow    --auth$reset           Enable API key authentication
+  $yellow    --no-auth$reset        Disable API key authentication (NOT recommended)
   $yellow    --keys-file$reset      Path to API keys storage file
   $yellow-h, --help$reset           Show this help
 
 ${bold}EXAMPLES:$reset
   ${dim}dhook server --port 3000$reset
-  ${dim}dhook server --port 3000 --auth$reset
+  ${dim}dhook server --port 3000 --no-auth  # Local dev only!$reset
 ''');
 }
 

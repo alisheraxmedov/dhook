@@ -17,9 +17,11 @@
 
 ---
 
-## 📖 What is DHOOK?
+## What is DHOOK?
 
-DHOOK is a lightweight webhook relay service that allows you to receive webhooks (from GitHub, Stripe, PayMe, etc.) on your local machine during development.
+DHOOK is a lightweight, self-hosted webhook relay service designed for developers. When building applications that integrate with external services like GitHub, Stripe, PayMe, or Telegram, you often need to receive webhooks during development. The problem is that these services require a publicly accessible URL, but your local development machine typically sits behind a NAT or firewall.
+
+DHOOK solves this by acting as a relay between the internet and your local machine. You deploy the DHOOK server on any VPS or cloud server with a public IP, then run the DHOOK client on your local machine. The client connects to the server via WebSocket and receives all incoming webhooks in real-time, forwarding them to your local application. This allows you to develop and test webhook integrations without exposing your machine to the internet or paying for tunneling services.
 
 ![structure](images/structure.png)
 
@@ -65,23 +67,17 @@ Point your webhook to:
 https://your-server.com/webhook/my-channel
 ```
 
-## 🔐 Authentication (Optional)
+## 🔐 Authentication
 
-DHOOK supports API key authentication to secure your channels.
-
-### Enable Auth on Server
-
-```bash
-# Start server with authentication
-dhook server --port 3000 --auth
-
-# Or with Docker (edit docker-compose.yml command)
-command: ["./dhook-server", "server", "--port", "3000", "--auth"]
-```
+DHOOK uses API key authentication by default to secure your channels.
 
 ### Create API Key
 
 ```bash
+# First, start the server
+dhook server --port 3000
+
+# Create API key for your channel
 curl -X POST https://your-server.com/api/keys \
   -H "Content-Type: application/json" \
   -d '{"channel": "my-channel", "name": "production"}'
@@ -97,6 +93,13 @@ dhook client \
   --server wss://your-server.com/ws/my-channel \
   --target http://localhost:8000 \
   --api-key dhk_xxx...
+```
+
+### Disable Auth (Local Development Only)
+
+```bash
+# ⚠️ NOT recommended for production!
+dhook server --port 3000 --no-auth
 ```
 
 ## 🐳 Docker Deployment

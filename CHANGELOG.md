@@ -8,8 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **API Key Authentication** for secure channel access
-  - `--auth` flag for server to enable authentication
+- **API Key Authentication** enabled by default for security
+  - `--no-auth` flag to disable authentication (NOT recommended)
   - `--api-key` flag for client to provide authentication token
   - `POST /api/keys` endpoint to generate new API keys
   - `GET /api/keys` endpoint to list registered channels
