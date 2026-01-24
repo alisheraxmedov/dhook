@@ -23,6 +23,12 @@ void main(List<String> arguments) async {
       defaultsTo: false,
     )
     ..addOption('keys-file', help: 'Path to API keys storage file')
+    ..addFlag(
+      'log',
+      help: 'Enable webhook logging to SQLite',
+      defaultsTo: false,
+    )
+    ..addOption('log-db', help: 'Path to webhook log database file')
     ..addFlag('help', abbr: 'h', negatable: false);
   parser.addCommand('server', serverParser);
 
@@ -63,6 +69,8 @@ void main(List<String> arguments) async {
       final port = int.parse(results.command!['port']);
       final disableAuth = results.command!['no-auth'] == true;
       final keysFile = results.command!['keys-file'] as String?;
+      final enableLog = results.command!['log'] == true;
+      final logDb = results.command!['log-db'] as String?;
 
       DLogger.banner('DHOOK Server', version, port);
       if (disableAuth) {
@@ -70,11 +78,16 @@ void main(List<String> arguments) async {
       } else {
         print('🔐 API Key authentication enabled');
       }
+      if (enableLog) {
+        print('📝 Webhook logging enabled');
+      }
 
       final server = RelayServer(
         port: port,
         enableAuth: !disableAuth,
         apiKeyStoragePath: keysFile ?? (!disableAuth ? 'keys.json' : null),
+        enableLogging: enableLog,
+        logDbPath: logDb,
       );
       await server.start();
     }

@@ -12,6 +12,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import '../models/webhook_payload.dart';
 import 'api_key_manager.dart';
 import 'rate_limiter.dart';
+import 'webhook_logger.dart';
 
 /// Manages WebSocket connections for all channels.
 class ConnectionManager {
@@ -107,21 +108,28 @@ class HeartbeatManager {
 class RelayServer {
   final int port;
   final bool enableAuth;
+  final bool enableLogging;
   final ConnectionManager _connections = ConnectionManager();
   late final HeartbeatManager _heartbeat;
   HttpServer? _server;
 
   final RateLimiter _rateLimiter;
   final ApiKeyManager? _apiKeyManager;
+  final WebhookLogger? _webhookLogger;
 
   RelayServer({
     this.port = 3000,
     int rateLimit = 100,
     this.enableAuth = false,
+    this.enableLogging = false,
     String? apiKeyStoragePath,
+    String? logDbPath,
   }) : _rateLimiter = RateLimiter(maxRequests: rateLimit),
        _apiKeyManager = apiKeyStoragePath != null || false
            ? ApiKeyManager(storagePath: apiKeyStoragePath)
+           : null,
+       _webhookLogger = enableLogging
+           ? WebhookLogger(dbPath: logDbPath ?? 'webhooks.db')
            : null {
     _heartbeat = HeartbeatManager(_connections);
   }
@@ -135,11 +143,12 @@ class RelayServer {
 
     _server = await shelf_io.serve(handler, InternetAddress.anyIPv4, port);
     _heartbeat.start();
-    print('🚀 DHOOK Server running on http://0.0.0.0:$port');
+    print('🚀 DHOOK Server running on https://0.0.0.0:$port');
   }
 
   Future<void> stop() async {
     _heartbeat.stop();
+    _webhookLogger?.close();
     await _connections.closeAll();
     await _server?.close();
   }
@@ -286,7 +295,6 @@ class RelayServer {
   ) async {
     final bodyString = await request.readAsString();
 
-    // Body size limit: 1MB
     if (bodyString.length > 1024 * 1024) {
       return Response(
         413,
@@ -304,14 +312,33 @@ class RelayServer {
       timestamp: DateTime.now(),
     );
 
+    final subscriberCount = _connections.subscriberCount(channelId);
     final message = {'type': 'webhook', 'payload': payload.toJson()};
     _connections.broadcast(channelId, jsonEncode(message));
+
+    final clientIp =
+        request.headers['x-forwarded-for']?.split(',').first.trim() ??
+        request.headers['x-real-ip'] ??
+        'unknown';
+
+    _webhookLogger?.log(
+      WebhookLog(
+        channelId: channelId,
+        timestamp: payload.timestamp,
+        method: request.method,
+        path: originalPath,
+        headers: payload.headers,
+        body: bodyString,
+        clientIp: clientIp,
+        subscribers: subscriberCount,
+      ),
+    );
 
     return Response.ok(
       jsonEncode({
         'status': 'ok',
         'channel': channelId,
-        'subscribers': _connections.subscriberCount(channelId),
+        'subscribers': subscriberCount,
       }),
       headers: {'Content-Type': 'application/json'},
     );

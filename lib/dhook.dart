@@ -14,6 +14,7 @@ export 'src/models/webhook_payload.dart';
 export 'src/server/relay_server.dart';
 export 'src/server/rate_limiter.dart';
 export 'src/server/api_key_manager.dart';
+export 'src/server/webhook_logger.dart';
 
 // Client
 export 'src/client/cli_agent.dart';
