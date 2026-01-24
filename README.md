@@ -23,7 +23,7 @@ DHOOK is a lightweight, self-hosted webhook relay service designed for developer
 
 DHOOK solves this by acting as a relay between the internet and your local machine. You deploy the DHOOK server on any VPS or cloud server with a public IP, then run the DHOOK client on your local machine. The client connects to the server via WebSocket and receives all incoming webhooks in real-time, forwarding them to your local application. This allows you to develop and test webhook integrations without exposing your machine to the internet or paying for tunneling services.
 
-![structure](images/structure.png)
+![structure](https://raw.githubusercontent.com/alisheraxmedov/dhook/main/images/structure.png)
 
 ## 🚀 Quick Start
 
@@ -51,16 +51,26 @@ cd dhook
 docker-compose up -d
 ```
 
-### 2. CLI Agent (on your machine)
+### 2. Create API Key
 
 ```bash
-# Run the client
-dhook client \
-  --server wss://your-server.com/ws/my-channel \
-  --target http://localhost:8000
+curl -X POST https://your-server.com/api/keys \
+  -H "Content-Type: application/json" \
+  -d '{"channel": "my-channel", "name": "production"}'
+
+# Response: {"api_key": "dhk_xxx...", ...}
 ```
 
-### 3. Configure Your Webhook
+### 3. CLI Agent (on your machine)
+
+```bash
+dhook client \
+  --server wss://your-server.com/ws/my-channel \
+  --target http://localhost:8000 \
+  --api-key dhk_xxx...
+```
+
+### 4. Configure Your Webhook
 
 Point your webhook to:
 ```
@@ -120,25 +130,19 @@ docker-compose down
 ### Server Commands
 
 ```bash
-# Start relay server on default port 3000
+# Start relay server (auth enabled by default)
 dhook server
 
 # Start on custom port
 dhook server --port 8080
 
-# Start with API key authentication
-dhook server --port 3000 --auth
+# Disable auth (local development only)
+dhook server --port 3000 --no-auth
 ```
 
 ### Client Commands
 
 ```bash
-# Connect to relay and forward to localhost
-dhook client \
-  --server wss://your-server.com/ws/my-channel \
-  --target http://localhost:8000
-
-# With API key authentication
 dhook client \
   --server wss://your-server.com/ws/my-channel \
   --target http://localhost:8000 \
@@ -162,23 +166,18 @@ dhook client \
 ```dart
 import 'package:dhook/dhook.dart';
 
-// Start a relay server
-final server = RelayServer(port: 3000);
-await server.start();
-
-// Start with authentication
-final authServer = RelayServer(
+// Start relay server (auth enabled by default)
+final server = RelayServer(
   port: 3000,
-  enableAuth: true,
   apiKeyStoragePath: 'keys.json',
 );
-await authServer.start();
+await server.start();
 
-// Start a CLI agent
+// Start a CLI agent with API key
 final agent = CliAgent(
   serverUrl: 'wss://your-server.com/ws/my-channel',
   targetUrl: 'http://localhost:8000',
-  apiKey: 'dhk_xxx...', // optional
+  apiKey: 'dhk_xxx...',
 );
 await agent.start();
 ```
@@ -227,6 +226,12 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## 🤝 Contributing
 
 We welcome contributions from the community! If you would like to contribute to this project, please read our [Contributing Guidelines](CONTRIBUTING.md) for detailed instructions on how to get started.
+
+## ☕ Support
+
+If you find DHOOK useful, consider buying me a coffee!
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/alisheraxmedov)
 
 ---
 
