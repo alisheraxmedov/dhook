@@ -11,6 +11,7 @@ import '../utils/logger.dart';
 class CliAgent {
   final String serverUrl;
   final String targetUrl;
+  final String? apiKey;
   final Duration retryDelay;
 
   WebSocketChannel? _channel;
@@ -20,6 +21,7 @@ class CliAgent {
   CliAgent({
     required this.serverUrl,
     required this.targetUrl,
+    this.apiKey,
     this.retryDelay = const Duration(seconds: 5),
   });
 
@@ -36,10 +38,19 @@ class CliAgent {
   }
 
   Future<void> _connect() async {
+    var connectUrl = serverUrl;
+
+    if (apiKey != null && apiKey!.isNotEmpty) {
+      final uri = Uri.parse(serverUrl);
+      final params = Map<String, String>.from(uri.queryParameters);
+      params['api_key'] = apiKey!;
+      connectUrl = uri.replace(queryParameters: params).toString();
+    }
+
     DLogger.connection('Connecting', serverUrl);
 
     try {
-      _channel = WebSocketChannel.connect(Uri.parse(serverUrl));
+      _channel = WebSocketChannel.connect(Uri.parse(connectUrl));
       await _channel!.ready;
       _isConnected = true;
       DLogger.success('Connected to relay server');
